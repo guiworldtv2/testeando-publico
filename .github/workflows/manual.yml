@@ -1,0 +1,37 @@
+name: Get StreamLink Live
+on:
+  schedule:
+    - cron: '0 0/1 * * *'
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: config
+      run: |
+        git config --global user.email "action@github.com"
+        git config --global user.name "GitHub Action"
+    - name: Install streamlink
+      run: |
+        python3 m3usplitter.py M3UFILE.M3U
+        python3 m3umerger.py
+        python3 m3dedup.py M3UFILE.M3U
+        iptv-channels.bash
+        
+        
+                   
+    - name: git add
+      run: |
+        git add -A
+        ls -la
+    - name: commit & push
+      run: |
+        git commit -m "links atualizados"
+        git push
