@@ -1,5 +1,5 @@
 import requests
 
-response = requests.get('https://vimeo.com/search/sort:latest?q=AULA')
+response = requests.get('https://g1.globo.com')
 
 print(response.content)
