@@ -18,12 +18,10 @@ jobs:
       run: |
         git config --global user.email "action@github.com"
         git config --global user.name "GitHub Action"
-    - name: Install streamlink
+    - name: Install Python
       run: |
-        python3 m3usplitter.py M3UFILE.M3U
-        python3 m3umerger.py
-        python3 m3dedup.py M3UFILE.M3U
-        iptv-channels.bash
+        python teste1.py
+
         
         
                    
