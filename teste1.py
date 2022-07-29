@@ -15,7 +15,7 @@ noticias = site.findAll('div', attrs={'class': 'r7-flex-hat'})
 
 for noticia in noticias:
   # Título
-  titulo = noticia.find('a', attrs={'class': 'r7-flex-title-h1'})
+  titulo = noticia.find('a', attrs={'class': 'widget-24x1-a__main label--rule-0-0'})
 
   # print(titulo.text)
   # print(titulo['href']) # link da notícia
