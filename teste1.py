@@ -8,9 +8,11 @@ content = response.content
 site = BeautifulSoup(content, 'html.parser')
 
 # HTML da notícia
-noticia = site.find('div', attrs={'class': 'feed-post-body'})
+noticias = site.findALL('div', attrs={'class': 'feed-post-body'})
 
-# Título
+print (noticias)
+
+# # Título
 titulo = noticia.find('a', attrs={'class': 'feed-post-link'})
 
 print(titulo.text)
