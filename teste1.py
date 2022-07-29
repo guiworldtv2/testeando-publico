@@ -4,24 +4,24 @@ import pandas as pd
 
 lista_noticias = []
 
-response = requests.get('https://vimeo.com/user181565536/')
+response = requests.get('https://www.youtube.com/results?search_query=aula&sp=CAISBBABGAI%253D')
 
 content = response.content
 
 site = BeautifulSoup(content, 'html.parser')
 
 # HTML da notícia
-noticias = site.findAll('div', attrs={'class': 'VideoCard__Container-sc-1vxxt31-0 bntdyV'})
+noticias = site.findAll('div', attrs= :{'id': 'dismissible'}{'class': 'style-scope ytd-video-renderer'})
 
 for noticia in noticias:
   # Título
-  titulo = noticia.find('a', attrs={'class': 'VideoCard__Container-sc-1vxxt31-0 bntdyV'})
+  titulo = noticia.find('a', attrs= :{'id': 'dismissible'}{'class': 'style-scope ytd-video-renderer'})
 
   # print(titulo.text)
   # print(titulo['href']) # link da notícia
 
   # Subtítulo: div class="feed-post-body-resumo"
-  subtitulo = noticia.find('div', attrs={'class': 'VideoCard__VideoTitleWrapper-sc-1vxxt31-14 cGaCYW'})
+  subtitulo = noticia.find('span', attrs={'class': 'style-scope yt-formatted-string'})
 
   if (subtitulo):
     # print(subtitulo.text)
