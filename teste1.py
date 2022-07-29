@@ -13,26 +13,8 @@ site = BeautifulSoup(content, 'html.parser')
 # HTML da notícia
 noticias = site.findAll('div', attrs={'class': 'item-ia hov'})
 
-for noticia in noticias:
-  # Título
-  titulo = noticia.find('a', attrs={'class': 'ttl'})
+# Título
 
-  # print(titulo.text)
-  # print(titulo['href']) # link da notícia
+titulo = noticia.find('a', attrs={'class':'item-ia hov'})
 
-  # Subtítulo: div class="feed-post-body-resumo"
-  subtitulo = noticia.find('div', attrs={'class': 'by C C4'})
-
-  if (subtitulo):
-    # print(subtitulo.text)
-    lista_noticias.append([titulo.text, subtitulo.text, titulo['href']])
-  else:
-    lista_noticias.append([titulo.text, '', titulo['href']])
-
-
-news = pd.DataFrame(lista_noticias, columns=['Título', 'Subtítulo', 'Link'])
-
-news.to_excel('noticias.xlsx', index=False)
-
-# print(news)
-
+print(titulo)
