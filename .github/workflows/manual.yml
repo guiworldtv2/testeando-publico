@@ -24,7 +24,7 @@ jobs:
         pip install pandas
         pip install openpyxl 
         pip install -U selenium
-        install xlsx
+        pip install xlsx
         python teste1.py
 
         
