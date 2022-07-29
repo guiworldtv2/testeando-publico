@@ -1,50 +1,37 @@
 import requests
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from time import sleep
+import pandas as pd
 
-options = Options()
-# options.add_argument('--headless')
-options.add_argument('window-size=400,800')
+lista_noticias = []
 
-navegador = webdriver.Chrome(options=options)
+response = requests.get('https://g1.globo.com/')
 
-navegador.get('https://www.airbnb.com')
+content = response.content
 
-sleep(2)
+site = BeautifulSoup(content, 'html.parser')
 
-input_place = navegador.find_element_by_tag_name('input')
-input_place.send_keys('São Paulo')
-input_place.submit()
+# HTML da notícia
+noticias = site.findAll('div', attrs={'class': 'feed-post-body'})
 
-sleep(0.5)
+for noticia in noticias:
+  # Título
+  titulo = noticia.find('a', attrs={'class': 'feed-post-link'})
 
-button_stay = navegador.find_element_by_css_selector('button > img')
-button_stay.click()
+  # print(titulo.text)
+  # print(titulo['href']) # link da notícia
 
-sleep(0.5)
+  # Subtítulo: div class="feed-post-body-resumo"
+  subtitulo = noticia.find('div', attrs={'class': 'feed-post-body-resumo'})
 
-nextButton = navegador.find_elements_by_tag_name('button')[-1]
-nextButton.click()
-
-sleep(0.5)
-
-# Definindo dois adultos
-adultButton = navegador.find_elements_by_css_selector('button > span > svg > path[d="m2 16h28m-14-14v28"]')[0]
-adultButton.click()
-sleep(1)
-adultButton.click()
-sleep(1)
+  if (subtitulo):
+    # print(subtitulo.text)
+    lista_noticias.append([titulo.text, subtitulo.text, titulo['href']])
+  else:
+    lista_noticias.append([titulo.text, '', titulo['href']])
 
 
-searchButton = navegador.find_elements_by_tag_name('button')[-1]
-searchButton.click()
+news = pd.DataFrame(lista_noticias, columns=['Título', 'Subtítulo', 'Link'])
 
-sleep(4)
+news.to_excel('noticias.xlsx', index=False)
 
-page_content = navegador.page_source
-
-site = BeautifulSoup(page_content, 'html.parser')
-
-print(site.prettify())
+# print(news)
