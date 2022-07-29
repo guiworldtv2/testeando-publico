@@ -21,6 +21,7 @@ jobs:
     - name: Install Python
       run: |
         python teste2.py 
+        pip install ps4
 
         
         
