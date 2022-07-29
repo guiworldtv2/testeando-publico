@@ -20,6 +20,7 @@ jobs:
         git config --global user.name "GitHub Action"
     - name: Install Python
       run: |
+        pip install bs4
         python teste1.py
 
         
