@@ -23,6 +23,7 @@ jobs:
         pip install bs4
         pip install pandas
         pip install openpyxl 
+        pip install -U selenium
         python teste1.py
 
         
