@@ -4,24 +4,24 @@ import pandas as pd
 
 lista_noticias = []
 
-response = requests.get('https://www.r7.com/')
+response = requests.get('https://g1.globo.com/')
 
 content = response.content
 
 site = BeautifulSoup(content, 'html.parser')
 
 # HTML da notícia
-noticias = site.findAll('div', attrs={'class': 'r7-flex-hat'})
+noticias = site.findAll('div', attrs={'class': 'feed-post-body'})
 
 for noticia in noticias:
   # Título
-  titulo = noticia.find('a', attrs={'class': 'widget-24x1-a__main label--rule-0-0'})
+  titulo = noticia.find('a', attrs={'class': 'feed-post-link'})
 
   # print(titulo.text)
   # print(titulo['href']) # link da notícia
 
   # Subtítulo: div class="feed-post-body-resumo"
-  subtitulo = noticia.find('div', attrs={'class': 'r7-flex-hat'})
+  subtitulo = noticia.find('div', attrs={'class': 'feed-post-body-resumo'})
 
   if (subtitulo):
     # print(subtitulo.text)
