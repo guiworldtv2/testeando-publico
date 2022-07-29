@@ -1,246 +1,169 @@
-import re
-import urllib.request
-from urllib.request import urlopen
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-import numpy as np
-import pandas as pd
-from bs4 import BeautifulSoup
+from typing import Optional, Union, Tuple, List, Dict
+import pickle
+import queue
+import os
+from pathlib import Path
+from time import sleep
+
+import vimeo_dl as vimeo
 import requests
+from bs4 import BeautifulSoup
 
 
-# Function to map category IDs to category names
-def map_categories(clip_categories, category_map):
-    clip_categories['main categories'] = np.empty((len(clip_categories), 0)).tolist()
-    clip_categories['sub categories'] = np.empty((len(clip_categories), 0)).tolist()
+from vimeodl import log
 
-    for i in range(len(clip_categories)):
-        all_categories = clip_categories.at[i, 'categories'].split(', ')
-        for cat in all_categories:
-            cat_map = category_map[category_map['category_id'] == int(cat)]
-            parent_id = cat_map.at[cat_map.index[0], 'parent_id']
-            if parent_id == 0:
-                clip_categories.at[i, 'main categories'].append(cat_map.at[cat_map.index[0], 'name'])
-            else:
-                parent_cat_map = category_map[category_map['category_id'] == parent_id]
-                clip_categories.at[i, 'sub categories'].append([cat_map.at[cat_map.index[0], 'name'],
-                                                                parent_cat_map.at[parent_cat_map.index[0], 'name']])
+__all__ = ["VimeoDownloader"]
 
-    return clip_categories
+__http = requests.Session()
 
 
-# Function to append categories to initial dataframe, takes in two Pandas dataframes
-def insert_categories(data, clip_categories):
-    data['main categories'] = np.empty((len(data), 0)).tolist()
-    data['sub categories'] = np.empty((len(data), 0)).tolist()
-    no_matching_clip_id = 0
+class VimeoLinkExtractor:
+    """
+    Base class for parsing and extracting
+    links from vimeo website
+    """
 
-    for i in range(len(clip_categories)):
-        clip_info = clip_categories.iloc[[i]]
-        clip_id = clip_info.at[i, 'clip_id']
-        clip_id_index1 = data[data['id'] == clip_id]
-        clip_id_index2 = data[data['clip_id'] == clip_id]
-        if len(clip_id_index1) is 0:
-            if len(clip_id_index2) is 0:
-                no_matching_clip_id += 1
-            else:
-                data.at[(clip_id_index2.index[0]), 'main categories'] = clip_info.at[i, 'main categories']
-                data.at[(clip_id_index2.index[0]), 'sub categories'] = clip_info.at[i, 'sub categories']
+    DOMAIN = "https://vimeo.com/"
+
+    def __init__(self, url):
+        self.videos = queue.Queue()
+        self.root_url = url.split(self.DOMAIN, maxsplit=1)[1]
+        self.waitTime = 1
+
+    def get_content(self, page_soup: BeautifulSoup):
+        contents = page_soup.find_all("div", attrs={"id": "browse_content"})
+        for content in contents:
+            lis = content.find_all("li")
+            for li in lis:
+                hrefs = li.find_all("a", href=True)
+                for href in hrefs:
+                    if "/videos/page" not in href["href"]:
+                        vid_uri = href["href"].split("/")[-1]
+                        log.info("\tLink: {}{}".format(self.DOMAIN, vid_uri))
+                        self.videos.put(self.DOMAIN + vid_uri)
+
+    @staticmethod
+    def has_next_page(soup: BeautifulSoup) -> bool:
+        n = soup.find_all("li", class_="pagination_next")
+        if len(n) is 0:
+            return False
+        if hasattr(n[0], n[0].a.text):
+            if n[0].a.text == "Next":
+                return True
+            return False
+
+    @staticmethod
+    def get_next_page(soup: BeautifulSoup) -> Optional[str]:
+        if VimeoLinkExtractor.has_next_page(soup):
+            n = soup.find_all("li", class_="pagination_next")
+            return n[0].a.get("href")
+        return None
+
+    def extract(self):
+        soup = fetch_page(self.DOMAIN + self.root_url)
+        if soup:
+            self.get_content(soup)
+            while True:
+                if self.has_next_page(soup):
+                    next_url = self.DOMAIN + self.get_next_page(soup)
+                    soup = fetch_page(next_url)
+                    sleep(0.2)
+                    self.get_content(soup)
+                    if self.videos.qsize() % 100 == 0:
+                        print("\n[Throttle for {} sec] \n".format(self.waitTime))
+                        sleep(self.waitTime)
+                else:
+                    break
+            return list(self.videos.queue)
+
+
+class VimeoDownloader:
+    def __init__(self, url, out_dir, resume):
+        self.out_dir = out_dir
+        self.resume_file = Path(os.path.join(out_dir, "video_links.p"))
+        self.count = 0
+        self.total = None
+        self.vd = None
+        self.urls = list()
+        self.url = url
+        self.queue = queue.Queue()
+
+        # check if there's a file with links already
+        if resume and self.resume_file.is_file():
+            log.info("Loading urls from file\n")
+            with open(os.path.join(out_dir, "video_links.p"), "rb") as file:
+                self.urls = pickle.load(file)
         else:
-            data.at[(clip_id_index1.index[0]), 'main categories'] = clip_info.at[i, 'main categories']
-            data.at[(clip_id_index1.index[0]), 'sub categories'] = clip_info.at[i, 'sub categories']
+            log.warning("Can't find resume file")
+            log.info("Extracting urls")
+            self.vd = VimeoLinkExtractor(self.url)
+            self.urls = self.vd.extract()
+            log.info("Resume file: " + out_dir + os.sep + "video_links.p")
+            with open(os.path.join(out_dir, "video_links.p"), "wb") as file:
+                pickle.dump(self.urls, file)
 
-    return data
+        self.total = len(self.urls)
+        log.info("Found {} videos\n".format(self.total))
 
+    def download(self):
+        for url in self.urls:  # put all links in a queue
+            self.queue.put(url)
 
-def load_whole_file(file_path, clip_category_file_path, category_map_file_path):
-    data = pd.read_csv(file_path, encoding="ISO-8859-1")
-    clip_categories = pd.read_csv(clip_category_file_path)
-    category_map = pd.read_csv(category_map_file_path)
-    clip_categories = map_categories(clip_categories, category_map)
-    data = insert_categories(data, clip_categories)
-    return data
+        while not self.queue.empty():
+            url = self.queue.get()
+            video = vimeo.new(url, size=True, basic=True)
 
+            print(
+                "Title: {}    - Duration: {} \nUrl: {}".format(
+                    video.title, video.duration, url
+                )
+            )
+            streams = video.streams
+            log.info("Available Downloads: ")
+            for s in streams:  # check available video quality
+                log.info(f"{s._itag}/{s._resolution}/{s._extension}")
+            best_video = video.getbest()  # select the best quality
+            log.info(
+                f"Selecting best quality: {best_video._itag}/{best_video._resolution}/{best_video._extension}"
+            )
 
-def get_updated_captions_for_whole_file(data):
-    print("Getting new captions for the whole dataset...")
+            videopath = Path(
+                os.path.join(self.out_dir, video.title + "." + s._extension)
+            )
 
-    for id in data['id']:
+            # check if the video in the link is already downloaded
+            if videopath.exists():
+                log.info(f"Already downloaded : {url}")
+                self.count += 1
+            else:
+                self.count += 1
+                log.info(f"Downloading... {self.count}/{self.total} {videopath}")
+                best_video.download(filepath=self.out_dir, quiet=False)
 
-        url = 'https://vimeo.com/' + str(id)
-        url_valid = url_is_alive(url)
+                self.urls.remove(url)  # remove downloaded link from the list
+            # save the updated list to a file to resume if something happens
+            # from there
+            pickle.dump(self.urls, open(self.out_dir + os.sep + "video_links.p", "wb"))
 
-        if url_valid:  # check if url is valid
-            vimeo_webpage = requests.get(url)
-
-            content = vimeo_webpage.text  # get content from webpage
-            soup = BeautifulSoup(content, 'html.parser')
-
-            if soup.find('div', attrs={
-                'class': 'clip_details-description description-wrapper iris_desc'}) is not None:
-                # get the video description (all paragraphs instead of first paragraph
-                article_soup = [s.get_text(separator=" ", strip=True) for s in soup.find('div', attrs={
-                    'class': 'clip_details-description description-wrapper iris_desc'}).find_all(
-                    'p')]
-
-                index = data.loc[data['id'] == id].index[0]
-
-                data.loc[index, 'caption'] = ' '.join(article_soup)  # update the caption of our train dataset
-    print("Finished getting new captions for the train file. ")
-
-    return data
-
-
-def load_train_and_test_files(file_path, clip_category_file_path, category_map_file_path):
-    """Loads excel files into train and test dataframes"""
-
-    data = load_whole_file(file_path, clip_category_file_path, category_map_file_path)
-
-    np.random.seed(seed=0)
-    indices = np.random.rand(len(data)) < 0.8
-    train = data[indices]
-    test = data[~indices]
-    return [train, test]
-
-
-def load_clips_categories(file_path):
-    clip_categories = pd.read_csv(file_path, encoding="ISO-8859-1")
-    return clip_categories
+        log.info("Download finished [{}/{}]: ".format(self.count, self.total), end="")
+        if self.count == self.total:
+            log.info("All videos downloaded successfully ")
+            os.remove(self.datadir + os.sep + "video_links.p")
+        else:
+            log.warning("Some videos failed to download run again")
 
 
-def url_is_alive(url):
-    """Checks that a given URL is reachable."""
-    request = urllib.request.Request(url)
-    request.get_method = lambda: 'HEAD'
+def fetch_page(url: str) -> BeautifulSoup:
+    """
+    Return BeautifulSoup object after successfully fetched url
+    :param url: Url like string
+    :return: BeautifulSoup object of url
+    """
 
-    try:
-        urllib.request.urlopen(request)
-        return True
-    except urllib.request.HTTPError:
-        return False
-
-
-def get_unknown_clip_categories(data_path, clip_category_file_path, category_map_file_path):
-    data = load_whole_file(data_path, clip_category_file_path, category_map_file_path)
-    clip_categories = load_clips_categories(clip_category_file_path)
-    counter = 0
-    clip_counter = 0
-    print("Trying to extract categories for videos that do not have a category...")
-    for id in data['id']:
-
-        if id not in clip_categories.clip_id.values:  # For each clip id that does not have a category
-            url = 'https://vimeo.com/' + str(id)
-            url_valid = url_is_alive(url)
-
-            if url_valid:  # check if url is valid
-
-                vimeo_webpage = urlopen(url)
-
-                content = vimeo_webpage.read()  # get content from webpage
-                soup = BeautifulSoup(content, 'lxml')
-
-                scripts = soup.find_all('script')  # get all scripts of webpage
-                for script in scripts:
-
-                    if script.string is not None:
-
-                        if "var _gtm" in script.string:  # if the script starts with var _gtm
-
-                            text = [x.strip() for x in script.text.split(';')]
-                            clip_variables = text[0]
-                            var = [re.sub(r'\W+', '', x.strip().split(':')[1]) for x in clip_variables.split(',') if
-                                   "category" in x]
-                            clip_counter = clip_counter + 1
-                            if var[0] is not '':
-                                # print(var[0])
-                                # print("buraya girdim")
-                                counter = counter + 1
-    print("Number of new clips with categories {}".format(counter))
-    print("Number of total clips investigated {}".format(clip_counter))
-    return counter
-
-
-class PandaFrames(object):
-    def __init__(self, filepath, clip_category_file_path, category_map_file_path):
-        """Loads excel files into DataFrames and updated the captions of the videos."""
-
-        print("Loading training and test files into Panda Data Frames..")
-        self.pandaframes = load_train_and_test_files(filepath, clip_category_file_path, category_map_file_path)
-        print("Panda Data Frames are ready.")
-        # self.get_new_captions_for_train_file()
-        # self.get_new_captions_for_test_file()
-        print("We are not extracting new captions temporarily. ")
-
-    def get_train_file(self):
-        """Return Panda Dataframe Training File."""
-        train = self.pandaframes[0]
-        train = train.reset_index()
-        train = train.drop(['Unnamed: 0', 'index'], axis=1)
-        return train
-
-    def get_test_file(self):
-        """Return Panda Dataframe Test File."""
-
-        test = self.pandaframes[1]
-        test = test.reset_index()
-        test = test.drop(['Unnamed: 0', 'index'], axis=1)
-        return test
-
-    def get_new_captions_for_train_file(self):
-        """Gets extended captions for each video in Training Dataset"""
-
-        print("Getting new captions for the train file...")
-        train = self.get_train_file()
-
-        for id in train['id']:
-
-            url = 'https://vimeo.com/' + str(id)
-            url_valid = url_is_alive(url)
-
-            if url_valid:  # check if url is valid
-                vimeo_webpage = urlopen(url)
-
-                content = vimeo_webpage.read()  # get content from webpage
-                soup = BeautifulSoup(content, 'html.parser')
-
-                if soup.find('div', attrs={
-                    'class': 'clip_details-description description-wrapper iris_desc'}) is not None:
-                    # get the video description (all paragraphs instead of first paragraph
-                    article_soup = [s.get_text(separator=" ", strip=True) for s in soup.find('div', attrs={
-                        'class': 'clip_details-description description-wrapper iris_desc'}).find_all(
-                        'p')]
-
-                    index = train.loc[train['id'] == id].index[0]
-
-                    train.loc[index, 'caption'] = ' '.join(article_soup)  # update the caption of our train dataset
-
-        print("Finished getting new captions for the train file. ")
-
-    def get_new_captions_for_test_file(self):
-        """Gets extended captions for each video in Test Dataset"""
-
-        print("Getting new captions for the test file...")
-
-        test = self.get_test_file()
-
-        for id in test['id']:
-
-            url = 'https://vimeo.com/' + str(id)
-            url_valid = url_is_alive(url)
-
-            if url_valid:  # check if url is valid
-                vimeo_webpage = urlopen(url)
-
-                content = vimeo_webpage.read()  # get content from webpage
-                soup = BeautifulSoup(content, 'html.parser')
-
-                if soup.find('div', attrs={
-                    'class': 'clip_details-description description-wrapper iris_desc'}) is not None:
-                    # get the video description (all paragraphs instead of first paragraph)
-                    article_soup = [s.get_text(separator=" ", strip=True) for s in soup.find('div', attrs={
-                        'class': 'clip_details-description description-wrapper iris_desc'}).find_all(
-                        'p')]
-
-                    index = test.loc[test['id'] == id].index[0]
-
-                    test.loc[index, 'caption'] = ' '.join(article_soup)  # update the caption of our train dataset
-        print("Finished getting new captions for the test file.")
+    response = __http.get(url)
+    if response.status_code != 200:
+        response.raise_for_status()
+    return BeautifulSoup(response.text, "html.parser")
