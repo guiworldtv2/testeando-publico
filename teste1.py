@@ -17,4 +17,4 @@ noticias = site.findAll('div', attrs={'class': 'item-ia hov'})
 
 titulo = noticia.find('a', attrs={'class':'item-ia hov'})
 
-print(titulo)
+print(titulo.text)
