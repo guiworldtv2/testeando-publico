@@ -20,7 +20,7 @@ jobs:
         git config --global user.name "GitHub Action"
     - name: Install Python
       run: |
-            install python3
+            install python3-pip
     - name: Executando Python
       run: |
              python teste2.py 
