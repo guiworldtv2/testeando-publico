@@ -11,17 +11,17 @@ content = response.content
 site = BeautifulSoup(content, 'html.parser')
 
 # HTML da notícia
-noticias = site.findAll('div', attrs={'class': 'feed-post-body'})
+noticias = site.findAll('div', attrs={'class': 'r7-flex-hat'})
 
 for noticia in noticias:
   # Título
-  titulo = noticia.find('a', attrs={'class': 'feed-post-link'})
+  titulo = noticia.find('a', attrs={'class': 'r7-flex-title-h1'})
 
   # print(titulo.text)
   # print(titulo['href']) # link da notícia
 
   # Subtítulo: div class="feed-post-body-resumo"
-  subtitulo = noticia.find('div', attrs={'class': 'feed-post-body-resumo'})
+  subtitulo = noticia.find('div', attrs={'class': 'r7-flex-hat'})
 
   if (subtitulo):
     # print(subtitulo.text)
