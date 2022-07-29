@@ -20,9 +20,7 @@ jobs:
         git config --global user.name "GitHub Action"
     - name: Install Python
       run: |
-        pip install requests bs4 vimeo_dl
-        pip install urlparse4
-        python vimeodl.py [-h] [-o SAVE_PATH] [-r] https://vimeo.com/734781659
+        python teste2.py 
 
         
         
