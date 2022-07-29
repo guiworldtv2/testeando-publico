@@ -21,8 +21,12 @@ jobs:
     - name: Install Python
       run: |
         $ sudo apt-get install python3
+    - name: Executando Python
+      run: |
         python teste2.py 
-        pip install ps4
+    - name: Instalando PS4
+      run: |
+           pip install ps4
 
         
         
