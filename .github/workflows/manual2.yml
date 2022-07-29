@@ -21,9 +21,6 @@ jobs:
     - name: Install Python
       run: |
         pip install bs4
-        pip install pandas
-        pip install openpyxl 
-        pip install -U selenium
         python teste2.py
 
         
