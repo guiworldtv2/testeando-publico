@@ -21,7 +21,7 @@ jobs:
     - name: Install Python
       run: |
         pip install requests bs4 vimeo_dl
-        python teste1.py
+        ptyhon vimeodl.py [-h] [-o SAVE_PATH] [-r] https://vimeo.com/734781659
 
         
         
