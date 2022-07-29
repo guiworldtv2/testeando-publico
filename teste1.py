@@ -35,4 +35,4 @@ news = pd.DataFrame(lista_noticias, columns=['Título', 'Subtítulo', 'Link'])
 news.to_excel('noticias.xlsx', index=False)
 
 # print(news)
-item-ia hov
+
