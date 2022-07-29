@@ -32,6 +32,6 @@ for noticia in noticias:
 
 news = pd.DataFrame(lista_noticias, columns=['Título', 'Subtítulo', 'Link'])
 
-news.to_excel('noticias.xlsx', index=False)
+news.to_excel('noticias.csv', index=False)
 
 # print(news)
