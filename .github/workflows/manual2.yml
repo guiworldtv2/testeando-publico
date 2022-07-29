@@ -24,9 +24,9 @@ jobs:
     - name: Executando Python
       run: |
         python teste2.py 
-    - name: Instalando PS4
+    - name: Instalando bs4
       run: |
-           pip install ps4
+          pip install bs4
 
         
         
