@@ -8,6 +8,6 @@ content = response.content
 
 site = BeautifulSoup(content, 'html.parser')
 
-vídeo = site.find('div',attrs={'class': 'iris_p_infinite__item span-1'})
+vídeo = site.find('a',attrs={'class': 'iris_video-vital__overlay iris_link-box iris_annotation-box iris_chip-box'})
 
 print(vídeo)
