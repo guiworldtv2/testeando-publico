@@ -22,8 +22,8 @@ jobs:
       run: |
         pip install bs4
         pip install pandas
-        pip install
-        openpyxlpython teste1.py
+        pip install openpyxlpython 
+        python teste1.py
 
         
         
