@@ -1,6 +1,5 @@
 import requests
 from bs4 import BeautifulSoup
-import csv
 import pandas as pd
 
 lista_noticias = []
@@ -33,6 +32,6 @@ for noticia in noticias:
 
 news = pd.DataFrame(lista_noticias, columns=['Título', 'Subtítulo', 'Link'])
 
-news.to_excel('noticias.csv', index=False)
+news.to_excel('noticias.xlsx', index=False)
 
 # print(news)
