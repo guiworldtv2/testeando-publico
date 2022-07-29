@@ -2,19 +2,37 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
-lista_noticia = []
+lista_noticias = []
 
-response = requests.get('https://archive.org/details/movies?query=tv&and[]=mediatype%3A%22movies%22')
+response = requests.get('https://vimeo.com/search/sort:latest?q=AULA/')
 
 content = response.content
 
 site = BeautifulSoup(content, 'html.parser')
 
 # HTML da notícia
-noticia = site.findAll('div', attrs={'class': 'item-ia hov'})
+noticias = site.findAll('div', attrs={'class': 'feed-post-body'})
 
-# Título
+for noticia in noticias:
+  # Título
+  titulo = noticia.find('a', attrs={'class': 'feed-post-link'})
 
-titulo = noticia.find('a', attrs={'class':'item-ia hov'})
+  # print(titulo.text)
+  # print(titulo['href']) # link da notícia
 
-print(titulo.text)
+  # Subtítulo: div class="feed-post-body-resumo"
+  subtitulo = noticia.find('div', attrs={'class': 'feed-post-body-resumo'})
+
+  if (subtitulo):
+    # print(subtitulo.text)
+    lista_noticias.append([titulo.text, subtitulo.text, titulo['href']])
+  else:
+    lista_noticias.append([titulo.text, '', titulo['href']])
+
+
+news = pd.DataFrame(lista_noticias, columns=['Título', 'Subtítulo', 'Link'])
+
+news.to_excel('noticias.xlsx', index=False)
+
+# print(news)
+item-ia hov
