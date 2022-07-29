@@ -4,14 +4,16 @@ import pandas as pd
 
 lista_noticias = []
 
-response = requests.get('https://g1.globo.com/')
+response = requests.get('https://vimeo.com/search/sort:latest?q=AULA/')
 
 content = response.content
 
 site = BeautifulSoup(content, 'html.parser')
 
 # HTML da notícia
-noticias = site.findAll('div', attrs={'class': 'feed-post-body'})
+noticias = site.find('div',attrs={'class': 'iris_p_infinite__item span-1'})
+
+print(noticias)
 
 for noticia in noticias:
   # Título
