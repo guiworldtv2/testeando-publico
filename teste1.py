@@ -11,11 +11,11 @@ content = response.content
 site = BeautifulSoup(content, 'html.parser')
 
 # HTML da notícia
-noticias = site.findAll('div', attrs= {'id': 'dismissible'}{'class': 'style-scope ytd-video-renderer'})
+noticias = site.findAll('div', attrs= {'id': 'dismissible'},{'class': 'style-scope ytd-video-renderer'})
 
 for noticia in noticias:
   # Título
-  titulo = noticia.find('a', attrs= {'id': 'dismissible'}{'class': 'style-scope ytd-video-renderer'})
+  titulo = noticia.find('a', attrs= {'id': 'dismissible'},{'class': 'style-scope ytd-video-renderer'})
 
   # print(titulo.text)
   # print(titulo['href']) # link da notícia
