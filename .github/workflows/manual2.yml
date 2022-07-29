@@ -20,13 +20,13 @@ jobs:
         git config --global user.name "GitHub Action"
     - name: Install Python
       run: |
-        $ sudo apt-get install python3
+            install python3
     - name: Executando Python
       run: |
-        python teste2.py 
+             python teste2.py 
     - name: Instalando bs4
       run: |
-          pip install bs4
+            pip install bs4
 
         
         
