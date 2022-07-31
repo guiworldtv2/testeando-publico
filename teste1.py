@@ -1,266 +1,184 @@
-# -*- coding: utf-8 -*-
-
+import json
+import datetime
+import re
 import requests
 from resources.lib.beatifulsoup import BeautifulSoup
 import urlparse
+from json import JSONEncoder
+import pickle
 import resources.lib.modules.control as control
-import re
-import datetime
-import json
-import traceback
+import base64
+from private_data import get_user, get_password
 
 
-def log(msg):
-    control.log('[Telecine] - %s' % msg)
+ACCESS_TOKEN_URL = 'https://apim.oi.net.br/connect/oauth2/token_endpoint/access_token'
+
+PROFILES_URL = 'https://apim.oi.net.br/app/oiplay/oapi/v1/users/accounts/{account}/list?useragent=web&deviceId={deviceid}'
+
+ENTITLEMENTS_URL = 'https://apim.oi.net.br/app/oiplay/oapi/v1/users/accounts/{account}/entitlements/list?useragent=web'
 
 
-def get_device_id():
-    device_id = control.setting('telecine_device_id')
+def get_default_profile(account, deviceid, token):
+    response = get_account_details(account, deviceid, token)
 
-    if not device_id:
-        device_id = register_device()
-        control.setSetting('telecine_device_id', device_id)
+    default_profile = response['oiplay_default_profile']
 
-    return device_id
+    return default_profile
 
 
-def get_auth_token():
-    tokens = login()
-    token = next((token.get('value') for token in tokens if token.get('type') == 'AuthorizationJWT'), None)
-    # control.log('AUTH TOKEN: %s' % token)
-    return token
+def get_account_details(account, deviceid, token):
+    details = {
+        'oiplay_default_profile': control.setting('oiplay_default_profile')
+    }
+
+    if details['oiplay_default_profile']:
+        control.log('ACCOUNT DETAILS FROM CACHE: ' + json.dumps(details))
+        return details
+
+    headers = {
+        'Accept': 'application/json',
+        'X-Forwarded-For': '189.1.125.97',
+        'User-Agent': 'OiPlay-Store/5.1.1 (iPhone; iOS 13.3.1; Scale/3.00)',  # if format == 'm3u8' else 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36',
+        'Authorization': 'Bearer ' + token
+    }
+    url = PROFILES_URL.format(account=account, deviceid=deviceid)
+
+    control.log('GET %s' % url)
+    response_full = requests.get(url, headers=headers)
+
+    control.log(response_full.content)
+
+    response = response_full.json() or {}
+
+    if not response.get('upmProfiles'):
+        control.log(response_full.status_code)
+        control.log(response_full.content)
+        return details
+
+    profiles = sorted(response['upmProfiles'], key=lambda k: k['upmProfileType']['id'])
+
+    for profile in profiles:
+        if profile['upmProfileStatus']['name'] == 'Active':
+            default_profile = profile['id']
+            break
+
+    response['oiplay_default_profile'] = default_profile
+
+    control.setSetting('oiplay_default_profile', str(default_profile))
+
+    control.log('ACCOUNT DETAILS FROM URL: ' + json.dumps(response))
+
+    return response
 
 
-def login():
+def gettoken(force_new=False):
 
-    credentials = control.setting('telecine_credentials')
-    if credentials:
-        log('Found credentials from cache')
-        credentials = json.loads(credentials)
+    user = get_user()
+    password = get_password()
 
-        user_account_token_expiry_ts = credentials[0]['expirationDate']
-        user_account_token_expiry = datetime.datetime.fromtimestamp(user_account_token_expiry_ts)
+    if force_new:
+        response = __login(user, password)
+    else:
+        settings_data = control.setting('oiplay_access_token_response')
+        refresh_token = None
+        if settings_data:
+            auth_json = json.loads(settings_data, object_hook=as_python_object)
+            refresh_token = auth_json['refresh_token']
 
-        if user_account_token_expiry > datetime.datetime.utcnow():
-            return credentials
+            if auth_json['date'] + datetime.timedelta(seconds=auth_json['expires_in']) > datetime.datetime.utcnow():
+                control.log('ACCESS TOKEN FROM FILE: ' + auth_json['access_token'])
+                id_token = auth_json.get('id_token')
+                return auth_json['access_token'], get_account_id(id_token)
+
+        if not refresh_token:
+            response = __login(user, password)
         else:
-            log('Cached credentials expired: %s' % user_account_token_expiry)
-            token = next((token.get('value') for token in credentials if token.get('type') == 'AuthorizationJWT'), None)
-            try:
-                log('trying to refresh...')
-                credentials = refresh_token(token)
-            except:
-                log(traceback.format_exc())
-                credentials = None
+            success, response = __refresh_token(refresh_token)
 
-    if not credentials:
-        user = control.setting('telecine_account')
-        password = control.setting('telecine_password')
-        idp_description = control.setting('telecine_provider')
+            if not success:
+                response = __login(user, password)
 
-        idp = get_provider_by_name(idp_description)
+    control.log(response)
 
-        try:
-            credentials = _login_internal(user, password, idp)
-        except Exception as ex:
-            control.log(traceback.format_exc(), control.LOGERROR)
-            control.infoDialog(ex.message, icon='ERROR')
-            return []
+    response['date'] = datetime.datetime.utcnow()
 
-    control.setSetting('telecine_credentials', json.dumps(credentials))
+    control.setSetting('oiplay_access_token_response', json.dumps(response, cls=PythonObjectEncoder))
 
-    return credentials
+    id_token = response.get('id_token')
+
+    return response['access_token'], get_account_id(id_token)
 
 
-def refresh_token(token):
-    url = 'https://bff.telecinecloud.com/api/v1/authentication/refresh'
+def get_account_id(id_token):
+    jwt = id_token.split('.')
+    jwt_base64_string = jwt[1] + '====='
+    jwt_json_string = base64.decodestring(jwt_base64_string)
+    account_id = json.loads(jwt_json_string).get('cpfcnpj')
+
+    return account_id
+
+
+def __refresh_token(refresh_token):
+
+    control.log('REFRESH TOKEN')
+
+    body = {
+        'client_id': 'e722caf1-7c47-4398-ac7f-f75a5f843906',
+        'client_secret': 'b1e75e98-0833-4c67-aed7-9f1f232c8e0f',
+        'grant_type': 'refresh_token',
+        'refresh_token': str(refresh_token)
+    }
+
+    control.log(body)
 
     headers = {
-        'authorization': 'Bearer ' + token,
-        'x-version': '2.5.10',
-        'user-agent': 'Telecine_iOS/2.5.10 (br.com.telecineplay; build:37; iOS 14.1.0) Alamofire/5.2.2',
-        'x-device': 'Mobile-iOS'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'OiPlay-Store/5.1.1 (iPhone; iOS 13.3.1; Scale/3.00)'
     }
 
-    log('POST %s' % url)
+    response = requests.post(ACCESS_TOKEN_URL, json=body, headers=headers)
 
-    result = requests.post(url, headers=headers)
+    # response.raise_for_status()
 
-    result.raise_for_status()
+    response = response.json()
 
-    return (result.json() or {}).get('tokens', [])
+    if not response or 'access_token' not in response:
+        return False, None
 
-
-def register_device():
-    auth = get_auth_token()
-
-    if not auth:
-        return
-
-    url = 'https://bff.telecinecloud.com/api/v1/account/devices'
-    headers = {
-        'authorization': 'Bearer ' + auth,
-        'user-agent': 'Telecine_iOS/2.5.10 (br.com.telecineplay; build:37; iOS 14.1.0) Alamofire/5.2.2',
-        'x-device': 'Mobile-iOS',
-        'x-version': '2.5.10'
-    }
-    data = {
-        "name": "BR Play"
-    }
-
-    log('register_device')
-    log('POST %s' % url)
-    log(headers)
-    log(data)
-
-    response = requests.post(url, json=data, headers=headers)
-
-    log(response.content)
-
-    if response.status_code == 400:
-        response_json = response.json()
-        raise Exception(response_json.get('message').encode('utf-8'))
-
-    response.raise_for_status()
-
-    json_response = response.json()
-
-    log(json_response)
-
-    return json_response.get('id')
+    return True, response
 
 
-def get_provider_by_name(name):
-    if not name:
-        return None
+def __login(user, password):
 
-    url = 'https://bff.telecinecloud.com/api/v1/authentication/providers-toolbox?filter=operadoras'
-
-    result = requests.get(url, headers={
-                        'x-version': '2.5.10',
-                        'user-agent': 'Telecine_iOS/2.5.10 (br.com.telecineplay; build:37; iOS 14.1.0) Alamofire/5.2.2',
-                        'x-device': 'Mobile-iOS'
-                    }).json()
-
-    idp = next((idp for idp in result if idp.get('description') == name), {})
-
-    return idp.get('idpShortName')
-
-
-def _login_internal(user, password, idp):
-
-    if not user or not password or not idp:
-        raise Exception('Missing credentials')
-
-    idp_func_name = '%s_login' % idp
-
-    if idp_func_name not in globals():
-        raise Exception(control.lang(34129).encode('utf-8'))
-
-    log('Logging in using provider: %s' % idp)
+    control.log('LOGIN OIPLAY')
 
     session = requests.session()
 
-    #            https://sp.tbxnet.com/v2/auth/telecine/login.html?idp=oitv&return=https%3A%2F%2Fwww.telecineplay.com.br%2Fauthentication%3Fcallback_url%3D%2F&country=BR
-    login_url = 'https://sp.tbxnet.com/v2/auth/telecine/login.html?return=https%3A%2F%2Fwww.telecineplay.com.br%2Ftoolbox%2Fcallback%3Fselected_idp%3D{idp}&country=BR&idp={idp}'.format(idp=idp)
+    url = 'https://apim.oi.net.br/oic?state=eyJzdGF0ZSI6InN0YXRlIiwidGFyZ2V0X3VyaSI6Ii9kby1sb2dpbiJ9&client_id=e722caf1-7c47-4398-ac7f-f75a5f843906&response_type=code&scope=openid%20customer_info%20oob&redirect_uri=https://oiplay.tv/login'
 
-    log('POST %s' % login_url)
+    response = session.get(url)
 
-    response = session.get(login_url)
+    url = re.findall(r'action="([^"]+)"', response.content)[0]
 
-    response.raise_for_status()
+    url = 'https://logintv.oi.com.br' + url
 
-    # idp provider login
-    response = globals()[idp_func_name](session, response, user, password)
+    session.post(url)
 
-    # continue tnt login
+    url_login = 'https://logintv.oi.com.br/nidp/wsfed/ep?sid=0'
 
-    url_parsed = urlparse.urlparse(response.url)
-
-    qs = urlparse.parse_qs(url_parsed.query)
-
-    auth_token = qs['toolbox_user_token'][0]
-
-    log('auth_token:')
-    log(auth_token)
-
-    #################################################################
-
-    url = 'https://bff.telecinecloud.com/api/v1/authentication'
-
-    data = {
-        "authToken": auth_token,
-        "authProvider": idp
-    }
-
-    headers = {
-        'user-agent': 'Telecine_iOS/2.5.10 (br.com.telecineplay; build:37; iOS 14.1.0) Alamofire/5.2.2',
-        'x-device': 'Mobile-iOS',
-        'x-version': '2.5.10'
-    }
-
-    log('POST %s' % url)
-    log(data)
-
-    response = requests.post(url, json=data, headers=headers)
-
-    response.raise_for_status()
-
-    tokens = response.json().get('tokens', [])
-
-    log('TOKENS:')
-    log(tokens)
-
-    return tokens
-
-
-def oitv_login(session, response, username, password):
-
-    login_path = re.findall(r'action="([^"]+)"', response.content)[0]
-
-    url = urlparse.urljoin(response.url, login_path)
-
-    log('POST %s' % url)
-
-    response = session.post(url)
-
-    response.raise_for_status()
+    response = session.post(url_login, data={
+        'option': 'credential',
+        'urlRedirect': 'https://logintv.oi.com.br/nidp/wsfed/ep?sid=0',
+        'Ecom_User_ID': user,
+        'Ecom_Password': password
+    })
 
     # control.log(response.content)
 
-    html = BeautifulSoup(response.content)
-
-    url = html.find('form')['action']
-
-    inputs = html.findAll('input')
-
-    post = {}
-
-    for ipt in inputs:
-        if not ipt.has_key('name'):
-            continue
-
-        if ipt.get('name') == 'Ecom_User_ID':
-            value = username
-        elif ipt.get('name') == 'Ecom_Password':
-            value = password
-        else:
-            value = ipt.get('value', '')
-
-        post[ipt.get('name')] = value
-
-    log('POST (AUTH) %s' % url)
-
-    response = session.post(url, data=post)
-
-    log(response.status_code)
-    log(response.content)
-
-    response.raise_for_status()
-
     url = re.findall(r"window.location.href='([^']+)';", response.content)[0]
 
-    log('GET %s' % url)
+    control.log('GET %s' % url)
 
     response = session.get(url)
 
@@ -272,59 +190,38 @@ def oitv_login(session, response, username, password):
 
     post = {}
 
-    for ipt in inputs:
-        post[ipt['name']] = ipt['value']
+    for input in inputs:
+        post[input['name']] = input['value']
 
-    log('POST %s' % url)
-    log(post)
+    response = session.post(url, data=post, allow_redirects=False)
 
-    response = session.post(url, data=post)
+    url_parsed = urlparse.urlparse(response.headers['Location'])
 
-    log(response.status_code)
-    log(response.content)
+    qs = urlparse.parse_qs(url_parsed.query)
 
-    response.raise_for_status()
+    code = qs['code']
 
-    return response
+    post = {
+        'client_id': 'e722caf1-7c47-4398-ac7f-f75a5f843906',
+        'client_secret': 'b1e75e98-0833-4c67-aed7-9f1f232c8e0f',
+        'code': code,
+        'grant_type': 'authorization_code',
+        'redirect_uri': 'https://oiplay.tv/login'
+    }
+
+    token_response = session.post(ACCESS_TOKEN_URL, data=post)
+
+    return json.loads(token_response.content, object_hook=as_python_object)
 
 
-def claro_login(session, response, username, password):
-    return net_login(session, response, username, password)
+class PythonObjectEncoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (list, dict, str, unicode, int, float, bool, type(None))):
+            return JSONEncoder.default(self, obj)
+        return {'_python_object': pickle.dumps(obj)}
 
 
-def net_login(session, response, username, password):
-
-    p = urlparse.urlparse(response.url)
-    qs = urlparse.parse_qs(p.query)
-
-    html = BeautifulSoup(response.content)
-
-    form = html.find('form')
-
-    if not form:
-        raise Exception('Failed to login: %s' % response.url)
-
-    fields = form.findAll('input')
-
-    form_data = dict((field.get('name'), field.get('value')) for field in fields)
-
-    form_data['Username'] = username
-    form_data['password'] = password
-    form_data['Auth_method'] = 'UP'
-
-    for key in qs.keys():
-        form_data[key] = qs[key][0]
-
-    post_url = urlparse.urljoin(response.url, form['action'])
-
-    response = session.post(post_url, data=form_data)
-
-    response.raise_for_status()
-
-    p = urlparse.urlparse(response.url)
-    qs = urlparse.parse_qs(p.query)
-
-    if 'error' in qs and 'error_description' in qs:
-        raise Exception(qs.get('error_description')[0].encode('utf-8'))
-
-    return response
+def as_python_object(dct):
+    if '_python_object' in dct:
+        return pickle.loads(str(dct['_python_object']))
+    return 
