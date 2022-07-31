@@ -24,7 +24,7 @@ jobs:
         pip install pandas
         pip install openpyxl 
         pip install -U selenium
-        estudo_beautifulsoup_e_selenium.ipynb
+        python teste1.py
 
         
         
