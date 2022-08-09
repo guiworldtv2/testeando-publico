@@ -4,7 +4,7 @@ import pandas as pd
 
 lista_noticias = []
 
-response = requests.get('https://g1.globo.com/')
+response = requests.get('https://www.globo.com/')
 
 content = response.content
 
