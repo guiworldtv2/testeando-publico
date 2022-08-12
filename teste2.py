@@ -1,7 +1,6 @@
 # -*- coding: UTF-8 -*-
 
 import requests
-from resources.lib.modules import control
 from . import cache
 import hashlib
 from threading import Lock
