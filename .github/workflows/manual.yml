@@ -14,18 +14,7 @@ jobs:
     steps:
 
     - name: Checkout
-      uses: actions/checkout@v1
-
-    - name: Create Github Release
-      id: create_release
-      uses: actions/create-release@v1.0.0
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
+    - uses: actions/checkout@v2
 
     - name: Upload Addon zip to github release (krypton)
       id: upload-release-asset-krypton
