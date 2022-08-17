@@ -1,39 +1,39 @@
-name: Kodi Addon-Submitter
-
+name: Get StreamLink Live
 on:
-  create:
-    tags:
-      - v*
+  schedule:
+    - cron: '0 0/1 * * *'
+
+  pull_request:
+    branches:
+      - main
 
   workflow_dispatch:
 
 jobs:
-  kodi-addon-submitter:
+  build:
     runs-on: ubuntu-latest
-    name: Kodi addon submitter
     steps:
-
-    - name: Checkout
     - uses: actions/checkout@v2
+    - name: config
+      run: |
+        git config --global user.email "action@github.com"
+        git config --global user.name "GitHub Action"
+    - name: Install Python
+      run: |
+        pip install bs4
+        pip install pandas
+        pip install openpyxl 
+        pip install -U selenium
+        python teste1.py
 
-    - name: Upload Addon zip to github release (krypton)
-      id: upload-release-asset-krypton
-      uses: actions/upload-release-asset@v1.0.1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ steps.kodi-addon-submitter.outputs.addon-zip }}
-        asset_name: ${{ steps.kodi-addon-submitter.outputs.addon-zip }}
-        asset_content_type: application/zip
-
-    - name: Upload Addon zip to github release (matrix)
-      id: upload-release-asset-matrix
-      uses: actions/upload-release-asset@v1.0.1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ steps.kodi-addon-submitter.outputs.addon-zip-matrix }}
-        asset_name: ${{ steps.kodi-addon-submitter.outputs.addon-zip-matrix }}
-        asset_content_type: application/zip
+        
+        
+                   
+    - name: git add
+      run: |
+        git add -A
+        ls -la
+    - name: commit & push
+      run: |
+        git commit -m "links atualizados"
+        git push
