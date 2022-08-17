@@ -5,6 +5,8 @@ on:
     tags:
       - v*
 
+  workflow_dispatch:
+
 jobs:
   kodi-addon-submitter:
     runs-on: ubuntu-latest
