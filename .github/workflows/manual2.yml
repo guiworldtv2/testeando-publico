@@ -22,6 +22,7 @@ jobs:
       run: |
          pip install bs4
          pip install pandas
+         pip install docx2txt==0.8
          python teste2.py
 
         
