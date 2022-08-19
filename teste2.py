@@ -3,6 +3,7 @@ import docx2txt #para arquivos docx
 import PyPDF2 #para pdf
 import os
 import PySimpleGUI as sg
+import tkinter as tk
 from funcoes import speak, get_audio, janela_inicial, janela_speech_recognition
 from docx import Document
 
