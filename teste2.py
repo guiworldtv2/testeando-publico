@@ -2,6 +2,8 @@ from inspect import Traceback
 import docx2txt #para arquivos docx
 import PyPDF2 #para pdf
 import os
+from tkinter import *
+from tkinter import ttk
 from funcoes import speak, get_audio, janela_inicial, janela_speech_recognition
 from docx import Document
 
