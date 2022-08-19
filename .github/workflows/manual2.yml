@@ -27,6 +27,7 @@ jobs:
          pip install PySimpleGUI
          pip install tk
          pip install gTTS
+         pip install playsound
          python teste2.py
 
         
