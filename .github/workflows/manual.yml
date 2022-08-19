@@ -30,7 +30,7 @@ jobs:
       run: |
         sudo apt update
         sudo apt install libreoffice
-        libreoffice --convert-to pdf noticias.xlsx
+        libreoffice --convert-to txt noticias.xlsx
         
         
                    
