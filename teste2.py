@@ -1,3 +1,11 @@
+import enum
+import sys
+import types
+
+import _tkinter # If this fails your Python may not be configured for Tk
+TclError = _tkinter.TclError
+from tkinter.constants import *
+import re
 from inspect import Traceback
 import docx2txt #para arquivos docx
 import PyPDF2 #para pdf
