@@ -26,7 +26,7 @@ jobs:
          pip install PyPDF2
          pip install PySimpleGUI
          pip install tk
-         pip install gtt-python-client
+         pip install gTTS
          python teste2.py
 
         
