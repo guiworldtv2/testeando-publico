@@ -24,6 +24,7 @@ jobs:
          pip install pandas
          pip install docx2txt==0.8
          pip install PyPDF2
+         pip install PySimpleGUI
          python teste2.py
 
         
