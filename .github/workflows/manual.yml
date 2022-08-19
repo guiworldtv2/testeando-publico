@@ -25,6 +25,9 @@ jobs:
         pip install openpyxl 
         pip install -U selenium
         python teste1.py
+
+    - name: Convert xlsx
+      run: |
         libreoffice --convert-to pdf noticias.xlsx
         
         
