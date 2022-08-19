@@ -25,7 +25,7 @@ jobs:
          pip install docx2txt==0.8
          pip install PyPDF2
          pip install PySimpleGUI
-         python -m tkinter
+         pip install tk
          python teste2.py
 
         
