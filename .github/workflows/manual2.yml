@@ -29,6 +29,7 @@ jobs:
          pip install gTTS
          pip install playsound
          pip install SpeechRecognition
+         python -m tkinter
          python teste2.py
 
         
