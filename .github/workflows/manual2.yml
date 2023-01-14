@@ -29,9 +29,8 @@ jobs:
          pip install gTTS
          pip install playsound
          pip install SpeechRecognition
-         python -m tkinter
-         apt-get install python-tk
-         python teste2.py
+    - name: teste2.py
+      run: python teste2.py
 
         
         
@@ -44,3 +43,5 @@ jobs:
       run: |
         git commit -m "links atualizados"
         git push
+        
+    
