@@ -25,7 +25,8 @@ jobs:
          pip install docx2txt==0.8
          pip install PyPDF2
          pip install PySimpleGUI
-         pip install tk
+         pip install tkinter
+
          pip install gTTS
          pip install playsound
          pip install SpeechRecognition
