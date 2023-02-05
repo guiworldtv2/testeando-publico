@@ -24,6 +24,7 @@ jobs:
         pip install pandas
         pip install openpyxl 
         pip install -U selenium
+        pip install reportlab
         python teste1.py
 
     - name: Convert xlsx
